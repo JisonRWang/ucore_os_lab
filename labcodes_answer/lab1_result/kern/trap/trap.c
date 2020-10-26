@@ -25,8 +25,12 @@ static void print_ticks() {
  * Must be built at run time because shifted function addresses can't
  * be represented in relocation records.
  * */
+/*  struct gatedesc 就是IDT 表项，8字节，64位
+*    从这里看出IDT 表项共256 项，对应255 个中断(第0号中断是除0错误)
+*/ 
 static struct gatedesc idt[256] = {{0}};
 
+/* 为什么要减1??? */
 static struct pseudodesc idt_pd = {
     sizeof(idt) - 1, (uintptr_t)idt
 };
@@ -46,9 +50,16 @@ idt_init(void) {
       *     You don't know the meaning of this instruction? just google it! and check the libs/x86.h to know more.
       *     Notice: the argument of lidt is idt_pd. try to find it!
       */
-    extern uintptr_t __vectors[];
+    /* 在vectors.S的"# vector table" 注释下面定义，保存的是256个中断处理例程的offset  */
+    extern uintptr_t __vectors[];  
     int i;
     for (i = 0; i < sizeof(idt) / sizeof(struct gatedesc); i ++) {
+        /* 在中断门描述符表中通过建立中断门描述符，
+              *   其中存储了中断处理例程的代码段GD_KTEXT(段选择子，可以看出
+              *   各个终端服务例程的段选择子都一样)和偏
+              *   移量__vectors[i](可以看出各个中断服务例程是不同的)，特权级为
+              *   DPL_KERNEL。这样通过查询idt[i]就可定位到中断服务例程的起始地址
+              */
         SETGATE(idt[i], 0, GD_KTEXT, __vectors[i], DPL_KERNEL);
     }
 	// set for switch from user to kernel
@@ -159,6 +170,9 @@ trap_dispatch(struct trapframe *tf) {
          * (2) Every TICK_NUM cycle, you can print some info using a funciton, such as print_ticks().
          * (3) Too Simple? Yes, I think so!
          */
+        /* 每一个tick都会产生一个时钟中断，然后进到这里，只是每
+              *   TICK_NUM 次才打印一次中断前的CPU信息而已
+              */
         ticks ++;
         if (ticks % TICK_NUM == 0) {
             print_ticks();

@@ -305,6 +305,7 @@ print_stackframe(void) {
     uint32_t ebp = read_ebp(), eip = read_eip();
 
     int i, j;
+    /* esp/ebp 在bootasm.S 中被设置为0x7c00 /0x0000 */
     for (i = 0; ebp != 0 && i < STACKFRAME_DEPTH; i ++) {
         cprintf("ebp:0x%08x eip:0x%08x args:", ebp, eip);
         uint32_t *args = (uint32_t *)ebp + 2;

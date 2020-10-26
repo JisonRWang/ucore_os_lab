@@ -3,6 +3,16 @@
 #include <string.h>
 #include <sys/stat.h>
 
+/*
+*   该工具用于检查生成的bootloader 尺寸是否不超过510B，
+*   并在末尾填充两个字节0x55AA，从而正式生成合法的bootloader
+*   bootloader 文件最大 510B，允许小于510B
+*   这部分代码可能有点风险，如果生成的bootloader 少于510B，这里
+*   仍是往第510，511 处添加0x55AA 。从目前的编译信息看，确实是
+*   少于510B的，也没有什么问题，所以这里还是应该再仔细分析
+*   一下。(??????)
+*/
+
 int
 main(int argc, char *argv[]) {
     struct stat st;
@@ -10,6 +20,7 @@ main(int argc, char *argv[]) {
         fprintf(stderr, "Usage: <input filename> <output filename>\n");
         return -1;
     }
+    /* stat() 函数，用于获取文件属性 */
     if (stat(argv[1], &st) != 0) {
         fprintf(stderr, "Error opening file '%s': %s\n", argv[1], strerror(errno));
         return -1;

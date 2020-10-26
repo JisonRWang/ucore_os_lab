@@ -30,7 +30,9 @@
  *  * bootmain() in this file takes over, reads in the kernel and jumps to it.
  * */
 unsigned int    SECTSIZE  =      512 ;
-struct elfhdr * ELFHDR    =      ((struct elfhdr *)0x10000) ;     // scratch space
+
+/* 0x10000 = 64KB，即该地址应该是内核代码在内存中的起始地址 */
+struct elfhdr * ELFHDR    =      ((struct elfhdr *)0x10000) ;     // scratch space  ( 为什么偏偏是这个地址????? )
 
 /* waitdisk - wait for disk ready */
 static void
@@ -40,23 +42,24 @@ waitdisk(void) {
 }
 
 /* readsect - read a single sector at @secno into @dst */
+/* https://blog.csdn.net/ml_1995/article/details/51044260 内联汇编基础语法 */
 static void
 readsect(void *dst, uint32_t secno) {
     // wait for disk to be ready
     waitdisk();
 
-    outb(0x1F2, 1);                         // count = 1
-    outb(0x1F3, secno & 0xFF);
-    outb(0x1F4, (secno >> 8) & 0xFF);
-    outb(0x1F5, (secno >> 16) & 0xFF);
-    outb(0x1F6, ((secno >> 24) & 0xF) | 0xE0);
+    outb(0x1F2, 1);                         // count = 1      只读取一个扇区
+    outb(0x1F3, secno & 0xFF);              /* 要读取扇区的编号 */
+    outb(0x1F4, (secno >> 8) & 0xFF);       /* 用来存放读写柱面的低8位字节  */
+    outb(0x1F5, (secno >> 16) & 0xFF);      /* 用来存放读写柱面的高2位字节 */
+    outb(0x1F6, ((secno >> 24) & 0xF) | 0xE0);  /* 用来存放要读/写的磁盘号及磁头号 */
     outb(0x1F7, 0x20);                      // cmd 0x20 - read sectors
 
     // wait for disk to be ready
     waitdisk();
 
     // read a sector
-    insl(0x1F0, dst, SECTSIZE / 4);
+    insl(0x1F0, dst, SECTSIZE / 4);  /* insl 是双字输入，所以这里除以4 */
 }
 
 /* *
@@ -71,6 +74,9 @@ readseg(uintptr_t va, uint32_t count, uint32_t offset) {
     va -= offset % SECTSIZE;
 
     // translate from bytes to sectors; kernel starts at sector 1
+    /* 读入的首个扇区存的是bootloader，所以这里要
+       *   往后偏一个扇区才是放内核代码的扇区
+       */
     uint32_t secno = (offset / SECTSIZE) + 1;
 
     // If this is too slow, we could read lots of sectors at a time.
@@ -85,6 +91,7 @@ readseg(uintptr_t va, uint32_t count, uint32_t offset) {
 void
 bootmain(void) {
     // read the 1st page off disk
+    /* 一口气读入8个扇区，其中还包括存放bootloader 代码的扇区 */
     readseg((uintptr_t)ELFHDR, SECTSIZE * 8, 0);
 
     // is this a valid ELF?
@@ -95,14 +102,22 @@ bootmain(void) {
     struct proghdr *ph, *eph;
 
     // load each program segment (ignores ph flags)
+    /* ELF头部有描述ELF文件应加载到内存什么位置的描述表
+       *   这一步是从elf 文件中获取程序描述表头
+       */
     ph = (struct proghdr *)((uintptr_t)ELFHDR + ELFHDR->e_phoff);
-    eph = ph + ELFHDR->e_phnum;
+    eph = ph + ELFHDR->e_phnum;  
+
+    /* 按照描述表将ELF文件中数据载入内存 */
     for (; ph < eph; ph ++) {
         readseg(ph->p_va & 0xFFFFFF, ph->p_memsz, ph->p_offset);
     }
 
     // call the entry point from the ELF header
     // note: does not return
+    /* 函数指针，e_entry保存的是地址，即第一条内核代码的地址
+       *   该函数是否为kern_init() 函数???
+       */
     ((void (*)(void))(ELFHDR->e_entry & 0xFFFFFF))();
 
 bad:

@@ -27,9 +27,9 @@ start:
     #  address line 20 is tied low, so that addresses higher than
     #  1MB wrap around to zero by default. This code undoes this.
 seta20.1:
-    inb $0x64, %al                                  # Wait for not busy(8042 input buffer empty).
-    testb $0x2, %al
-    jnz seta20.1
+    inb $0x64, %al                                  # Wait for not busy(8042 input buffer empty). Read a byte from 0x64 port to al
+    testb $0x2, %al                                 # Test the 2nd bit of al
+    jnz seta20.1                                    # if the 2nd bit of al == 0, jump out the cycle
 
     movb $0xd1, %al                                 # 0xd1 -> port 0x64
     outb %al, $0x64                                 # 0xd1 means: write data to 8042's P2 port
@@ -46,10 +46,10 @@ seta20.2:
     # and segment translation that makes virtual addresses
     # identical to physical addresses, so that the
     # effective memory map does not change during the switch.
-    lgdt gdtdesc
-    movl %cr0, %eax
-    orl $CR0_PE_ON, %eax
-    movl %eax, %cr0
+    lgdt gdtdesc                                    # load GDT into register GDTR, including the size and the originating address of GDT
+    movl %cr0, %eax                                 # I guess the value in cr0 is set when cpu is started.
+    orl $CR0_PE_ON, %eax                            # set the 0 bit of eax 1
+    movl %eax, %cr0                                 # now, start the protected mode
 
     # Jump to next instruction, but in 32-bit code segment.
     # Switches processor into 32-bit mode.

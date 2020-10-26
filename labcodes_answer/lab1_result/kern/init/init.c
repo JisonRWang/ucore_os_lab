@@ -9,6 +9,14 @@
 #include <intr.h>
 #include <pmm.h>
 #include <kmonitor.h>
+
+/* __attribute__ noreturn
+*  通知编译器函数从不返回值，当遇到类似函数需要返回值
+*  而却不可能运行到返回值处就已经退出来的情况，该属性
+*  可以避免出现错误信息。C库函数中的abort（）和exit（）的声
+*  明格式就采用了这种格式
+*  https://blog.csdn.net/swj9099/article/details/96713277
+*/
 void kern_init(void) __attribute__((noreturn));
 void grade_backtrace(void);
 static void lab1_switch_test(void);
@@ -25,13 +33,16 @@ kern_init(void){
 
     print_kerninfo();
 
-    grade_backtrace();
+    grade_backtrace();          /* 干嘛的??? */
 
-    pmm_init();                 // init physical memory management
+    pmm_init();                 // init physical memory management       初始化全局描述符表
 
+    /* 中断初始化包含三步，
+       *   初始化中断控制器，中断向量表，并使能中断
+       *   注意，bootloader 做的第一件事就是关中断，所以这里要使能中断
+       */
     pic_init();                 // init interrupt controller
     idt_init();                 // init interrupt descriptor table
-
     clock_init();               // init clock interrupt
     intr_enable();              // enable irq interrupt
 
